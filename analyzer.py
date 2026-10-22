@@ -46,6 +46,7 @@ SOCIAL_DOMAINS = ["facebook.com", "fb.com", "youtube.com", "youtu.be", "tiktok.c
 FB_DOMAINS = ["facebook.com", "fb.com", "fb.watch"]
 SLUG_BAIT = ["gopon", "viral", "breaking", "shocking", "secret", "chomok", "chomke", "exposed", "unbelievable", "gujob", "scandal"]
 DATE_HINT = re.compile(r"(জানুয়ারি|ফেব্রুয়ারি|মার্চ|এপ্রিল|মে|জুন|জুলাই|আগস্ট|সেপ্টেম্বর|অক্টোবর|নভেম্বর|ডিসেম্বর|২০[০-৯]{2}|20[0-9]{2}|প্রকাশিত|আপডেট|published|updated)")
+BIG_CLAIMS = ["মারা গেছে", "মারা গেছেন", "মারা যান", "ইন্তেকাল", "নিহত হয়েছে", "নিহত হয়েছেন", "খুন হয়েছে", "মৃত্যু হয়েছে", "মৃত্যুবরণ", "পদত্যাগ করেছেন", "পদত্যাগ করেছে", "গ্রেফতার", "গ্রেপ্তার", "যুদ্ধ শুরু", "ভূমিকম্পে", "ধসে পড়েছে", "নিষিদ্ধ করা হয়েছে", "সরকার পতন", "পতন হয়েছে", "died", "passed away", "killed", "resigned", "arrested", "earthquake"]
 
 EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]")
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
@@ -276,6 +277,15 @@ def analyze_engine(raw: str, mode: str = "text", url=None, title: str = "", body
         score += 8
         reasons.append("🔎 এত বড় দাবি, অথচ কারো বক্তব্য বা সূত্রের উল্লেখ নেই।")
 
+    big_claim = any(w in lower for w in BIG_CLAIMS)
+    if big_claim:
+        if has_attribution or credible_hit:
+            score += 4
+            reasons.append("⚠️ লেখায় বড় ঘটনার (মৃত্যু/পদত্যাগ/দুর্যোগ জাতীয়) দাবি আছে — এমন খবর অন্য বড় মাধ্যমেও একবার মিলিয়ে দেখা জরুরি।")
+        else:
+            score += 26
+            reasons.append("🚨 লেখায় অনেক বড় ঘটনার দাবি আছে, অথচ কোনো সূত্র বা মাধ্যমের নাম নেই। এত বড় ঘটনা সত্যি হলে সব বড় সংবাদ মাধ্যমে একযোগে খবরটা থাকতো — সেখানে না থাকলে এটা প্রায় নিশ্চিত গুজব।")
+
     if body and len(body) > 300:
         if DATE_HINT.search(body) or DATE_HINT.search(title):
             score -= 6
@@ -287,7 +297,7 @@ def analyze_engine(raw: str, mode: str = "text", url=None, title: str = "", body
     score = max(0, min(100, score))
     verdict, advice, color = verdict_block(score, mode)
 
-    if len(reasons) < 3 and not credible_hit:
+    if len(reasons) < 3 and not credible_hit and score < 30:
         reasons.append("🧐 বড় কোনো সতর্ক সংকেত পাইনি, তবে source-টা নিজে একবার দেখে নেওয়া ভালো।")
 
     return {
